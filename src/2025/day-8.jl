@@ -28,7 +28,6 @@ max_connections = 1000
 Point = Tuple{Integer, Integer, Integer}
 
 function parse_input(input::String)::Vector{Point}
-    """Parse input to return start and splitters."""
     println("Parsing input")
     ret = Vector{Point}()
     for line in eachsplit(input, "\n")
