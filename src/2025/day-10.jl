@@ -4,7 +4,9 @@ input = """[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
 
 using Logging
 
-input = read("src/2025/inputs/day_10.txt", String);Logging.disable_logging(Logging.Info)
+Logging.disable_logging(Logging.Debug)
+input = read("src/2025/inputs/day_10.txt", String);
+Logging.disable_logging(Logging.Info)
 
 using Test
 using Combinatorics
@@ -81,10 +83,10 @@ function find_minimum_machines_presses(machines::Vector{Machine})::Integer
 end
 
 
-machines = parse_input(input)
-presses = find_minimum_machines_presses(machines)
+# machines = parse_input(input)
+# presses = find_minimum_machines_presses(machines)
 
-println("Answer 1: $presses")
+# println("Answer 1: $presses")
 
 
 struct Machine2
@@ -124,7 +126,7 @@ function parse_input2(input::String)::Vector{Machine2}
 end
 
 
-function get_min_presses_for_machine(machine::Machine2, min_total_presses::Integer = Int(1e9))::Union{Integer, Nothing}
+function get_min_presses_for_machine(machine::Machine2, min_total_presses::Integer, entry::Bool = false)::Union{Integer, Nothing}
     if all(machine.joltage .== 0)
         @info "Machine solved!"
         return 0
@@ -135,7 +137,7 @@ function get_min_presses_for_machine(machine::Machine2, min_total_presses::Integ
         return
     end
 
-    @info "Solving: $machine"
+    @info "Solving" machine min_total_presses
 
     max_presses = ones(Integer, length(machine.button_indices)) * maximum(machine.joltage)
     jidx_counter = Dict{Integer, Integer}()
@@ -165,10 +167,13 @@ function get_min_presses_for_machine(machine::Machine2, min_total_presses::Integ
     got_better_solution = false
 
 #    j, jolt = [(j, jolt) for (j, jolt) in enumerate(machine.joltage) if jolt > 0][1]
-    j = [key for (key, cnt) in jidx_counter if cnt == minimum(values(jidx_counter))][1]
+    # j = [key for (key, cnt) in jidx_counter if cnt == minimum(values(jidx_counter))][1]
+    j = first(keys(jidx_counter));
 
     @info "Aiming to zero out j=$j for joltage=$(machine.joltage[j])"
     relevant_buttons = [i for (i, b) in enumerate(machine.button_indices) if j in b]
+    sort!(relevant_buttons, by=x->-length(machine.button_indices[x]))
+
     @info "Relevant buttons: $relevant_buttons, aka $(machine.button_indices[relevant_buttons])"
     max_joltage = sum(max_presses[relevant_buttons])
     for b in relevant_buttons
@@ -201,27 +206,180 @@ function get_min_presses_for_machine(machine::Machine2, min_total_presses::Integ
     end
 
     if got_better_solution
+        if entry
+            println("Got one solution $min_total_presses")
+        end
         return min_total_presses
     end
 end
 
-function find_total_min_presses2(machines2::Vector{Machine2})::Integer
+function find_total_min_presses2(machines2::Vector{Machine2}, from::Integer = 1, to::Integer = Int(1e9))::Integer
     total_min = 0
     for (i, machine) in enumerate(machines2)
+        if i < from || i > to
+            continue
+        end
+        println("Simplyfying machine $i / $(length(machines2)): $machine")
+        machine = simplify_machine(machine)
         println("$(now()): Solving machine $i / $(length(machines2)): $machine")
-        min_presses = get_min_presses_for_machine(machine)
-        println("Done with $min_presses presses")
+        min_presses = get_min_presses_for_machine(machine, Int(1e9), true)
         total_min += min_presses
+
+        println("Done with $min_presses presses, RUNNING SUM $total_min")
     end
 
     return total_min
 end
 
-# machine = Machine2(Integer[52, 40, 42, 214, 239, 56, 215], Vector{Integer}[[4, 5, 7], [3, 4, 5], [1, 7], [2], [1, 3, 4, 5, 6], [1, 3, 5, 6, 7], [4, 5, 6, 7], [1, 2, 3, 5, 6], [1, 2, 3, 6, 7]], Vector{Integer}[[0, 0, 0, 1, 1, 0, 1], [0, 0, 1, 1, 1, 0, 0], [1, 0, 0, 0, 0, 0, 1], [0, 1, 0, 0, 0, 0, 0], [1, 0, 1, 1, 1, 1, 0], [1, 0, 1, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1, 1], [1, 1, 1, 0, 1, 1, 0], [1, 1, 1, 0, 0, 1, 1]])
-# get_min_presses_for_machine(machine)
+
+function simplify_machine(machine::Machine2)::Machine2
+    # lights x buttons
+    button_matrix = permutedims(hcat(machine.button_increments...))'
+    new_joltage = machine.joltage
+
+    # Machine 141
+    # full_matrix = hcat(button_matrix, machine.joltage)
+    # full_matrix[1,:] += full_matrix[3,:];
+    # full_matrix[3,:] -= full_matrix[1,:];
+    # full_matrix[10,:] -= full_matrix[1,:];
+
+    # full_matrix[1,:] -= 2*full_matrix[2,:];
+    # full_matrix[3,:] += full_matrix[2,:];
+    # full_matrix[5,:] -= full_matrix[2,:]
+    # full_matrix[6,:] -= full_matrix[2,:]
+    # full_matrix[7,:] -= full_matrix[2,:]
+    # full_matrix[8,:] -= full_matrix[2,:]
+    # full_matrix[9,:] -= full_matrix[2,:]
+    # full_matrix[10,:] += 2*full_matrix[2,:];
+
+    # full_matrix[3,:] += full_matrix[8,:];
+    # full_matrix[8,:] -= full_matrix[3,:];
+    # full_matrix[9,:] -= full_matrix[3,:];
+
+    # full_matrix[3,:] += full_matrix[4,:];
+    # full_matrix[1,:] -= 2*full_matrix[4,:];
+    # full_matrix[5,:] -= full_matrix[4,:];
+    # full_matrix[7,:] -= full_matrix[4,:];
+    # full_matrix[8,:] -= full_matrix[4,:];
+    # full_matrix[9,:] -= full_matrix[4,:];
+    # full_matrix[10,:] += full_matrix[4,:];
+
+    # full_matrix[5,:] -= full_matrix[7,:];
+    # full_matrix[2,:] -= full_matrix[5,:];
+    # full_matrix[3,:] -= full_matrix[5,:];
+    # full_matrix[4,:] -= full_matrix[5,:];
+    # full_matrix[1,:] += 4*full_matrix[5,:];
+    # full_matrix[7,:] += 2*full_matrix[5,:];
+    # full_matrix[8,:] += 2*full_matrix[5,:];
+    # full_matrix[9,:] += full_matrix[5,:];
+    # full_matrix[10,:] -= 3*full_matrix[5,:];
+
+    # full_matrix[6,:] -= full_matrix[10,:];
+    # full_matrix[6,:] -= full_matrix[8,:];
+    # full_matrix[5,:] -= full_matrix[6,:];
+    # full_matrix[4,:] += full_matrix[6,:];
+    # full_matrix[3,:] += 2*full_matrix[6,:];
+    # full_matrix[2,:] += full_matrix[6,:];
+    # full_matrix[1,:] -= 5*full_matrix[6,:];
+    # full_matrix[7,:] -= 2*full_matrix[6,:];
+    # full_matrix[8,:] -= 3*full_matrix[6,:];
+    # full_matrix[9,:] -= 2*full_matrix[6,:];
+    # full_matrix[10,:] += 4*full_matrix[6,:];
+
+    # full_matrix[6,:] += 2*full_matrix[7,:];
+    # full_matrix[5,:] -= full_matrix[7,:];
+    # full_matrix[3,:] += 2*full_matrix[7,:];
+    # full_matrix[1,:] -= 3*full_matrix[7,:];
+    # full_matrix[8,:] -= 2*full_matrix[7,:];
+    # full_matrix[9,:] -= 2*full_matrix[7,:];
+    # full_matrix[10,:] += 2*full_matrix[7,:];
+
+    # full_matrix[8,:] -= full_matrix[10,:];
+    # full_matrix[9,:] += 2*full_matrix[8,:];
+    # full_matrix[10,:] += full_matrix[8,:];
+    # full_matrix[7,:] -= 3*full_matrix[8,:];
+    # full_matrix[6,:] -= 3*full_matrix[8,:];
+    # full_matrix[5,:] += full_matrix[8,:];
+    # full_matrix[4,:] += full_matrix[8,:];
+    # full_matrix[3,:] -= 2*full_matrix[8,:];
+    # full_matrix[2,:] += full_matrix[8,:];
+
+    # full_matrix[9,:] -= 5*full_matrix[10,:];
+    # full_matrix[8,:] -= 2*full_matrix[10,:];
+    # full_matrix[7,:] += 7*full_matrix[10,:];
+    # full_matrix[6,:] += 7*full_matrix[10,:];
+    # full_matrix[5,:] -= 2*full_matrix[10,:];
+    # full_matrix[4,:] -= 2*full_matrix[10,:];
+    # full_matrix[3,:] += 5*full_matrix[10,:];
+    # full_matrix[2,:] -= 2*full_matrix[10,:];
+    # full_matrix[1,:] -= full_matrix[10,:];
+
+    # full_matrix[10,:] += full_matrix[6,:];
+    # full_matrix[6,:] += full_matrix[5,:];
+
+    change = true
+    cnt = 1
+    while change && cnt < 20
+        cnt += 1
+        # simplifying: If any row is subset of any other row, subtract
+        change = false
+        for row1 in 1:length(new_joltage)
+            row1_indices = [i for (i, b) in enumerate(button_matrix[row1, :]) if b == 1]
+            if all(button_matrix[row1, :] .== 0)
+                # no point in checking this
+                continue
+            end
+            for row2 in 1:length(new_joltage)
+                if row2 == row1
+                    continue
+                end
+                row2_indices = [i for (i, b) in enumerate(button_matrix[row2, :]) if b == 1]
+                change = all(i in row2_indices for i in row1_indices)
+                if change
+                    @warn "Subtracting row $row1 from $row2" button_matrix
+                    button_matrix[row2, :] = button_matrix[row2, :] - button_matrix[row1, :]
+                    new_joltage[row2] -= new_joltage[row1]
+                    break
+                end
+            end
+            if change
+                break
+            end
+        end
+    end
+
+    new_button_increments = [Vector{Integer}(col) for col in eachcol(button_matrix)]
+    new_button_indices = [Vector{Integer}([i for (i, b) in enumerate(butt) if b == 1]) for butt in new_button_increments]
+
+    return Machine2(new_joltage, new_button_indices, new_button_increments)
+end
+
 
 machines2 = parse_input2(input)
-total_min = find_total_min_presses2(machines2)
+
+
+# machine = machines2[141]
+# machine = simplify_machine(machine)
+
+# get_min_presses_for_machine(machine)
+
+if length(ARGS) == 2
+    from = parse(Int, ARGS[1])
+    to = parse(Int, ARGS[2])
+    println("Solving from $from to $to")
+    total_min = find_total_min_presses2(machines2, from, to)
+else
+    total_min = find_total_min_presses2(machines2)
+end
 println("Answer 2: $total_min")
 
 #sort([length(m.button_indices) for m in machines2])
+
+# 1- 40: 3860
+# 41 - 80:  3903
+# 81-120: 4101
+# 121-140: 2472
+# 141: 112
+# 142-149: 1048
+# 150-158: 567
+println(3860+3903+4101+2472+112+1048+567)
